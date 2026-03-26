@@ -4,8 +4,8 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client"
+  output        = "../src/generated/prisma"
   compilerBuild = "fast"  // "fast" (default) | "small" — v7.3.0+
 }
 
@@ -20,6 +20,12 @@ datasource db {
 enum UserRole {
   USER
   ADMIN
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }
 
 // ============================================
@@ -45,8 +51,10 @@ model User {
   deletedAt        DateTime?
 
   // Relations
-  // posts         Post[]
   refreshTokens    RefreshToken[]
+  posts            Post[]
+  likes            Like[]
+  comments         Comment[]
 
   // Indexes
   // @@index([deletedAt]) -> thêm partial index thủ công trong migration
@@ -55,22 +63,136 @@ model User {
 }
 
 model RefreshToken {
-  id          String   @id @default(cuid())
-  tokenHash   String   @unique @db.VarChar(255)
+  id               String         @id @default(cuid())
+  tokenHash        String         @unique @db.VarChar(255)
   
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  userAgent   String?  @db.Text
-  ipAddress   String?  @db.VarChar(45)
+  userAgent        String?        @db.Text
+  ipAddress        String?        @db.VarChar(45)
   
-  isRevoked   Boolean  @default(false)
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  isRevoked        Boolean        @default(false)
+  expiresAt        DateTime
+  createdAt        DateTime       @default(now())
   
   @@index([userId, isRevoked])
   @@index([expiresAt])
-
   @@map("refresh_tokens")
 }
 
+model Post {
+  id               String         @id @default(cuid())
+  slug             String         @unique @db.VarChar(255)
+  coverImage       String?        @db.VarChar(500)
+  status           PostStatus     @default(DRAFT)
+  viewCount        Int            @default(0)
+  publishedAt      DateTime?
+
+  authorId         String
+  author           User           @relation(fields: [authorId], references: [id])
+  categoryId       String?
+  category         Category?      @relation(fields: [categoryId], references: [id])
+
+  translations     PostTranslation[]
+  tags             Tag[]          @relation("PostTags")
+  comments         Comment[]
+  likes            Like[]
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([authorId])
+  @@index([categoryId])
+  // @@index([deletedAt])
+  @@map("posts")
+}
+
+model PostTranslation {
+  id               String         @id @default(cuid())
+  language         String         @db.VarChar(10)
+  title            String         @db.VarChar(255)
+  excerpt          String?        @db.Text
+  content          String         @db.Text
+
+  postId           String
+  post             Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, language])
+  @@index([language])
+  @@map("post_translations")
+}
+
+model Category {
+  id               String         @id @default(cuid())
+  slug             String         @unique @db.VarChar(255)
+
+  parentId         String?
+  parent           Category?      @relation("CategoryTree", fields: [parentId], references: [id])
+  children         Category[]     @relation("CategoryTree")
+
+  posts            Post[]
+  translations     CategoryTranslation[]
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@map("categories")
+}
+
+model CategoryTranslation {
+  id               String         @id @default(cuid())
+  language         String         @db.VarChar(10)
+  name             String         @db.VarChar(255)
+
+  categoryId       String
+  category         Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, language])
+  @@map("category_translations")
+}
+
+model Comment {
+  id               String         @id @default(cuid())
+  content          String         @db.Text
+
+  postId           String
+  post             Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId         String
+  author           User           @relation(fields: [authorId], references: [id])
+  parentId         String?
+  parent           Comment?       @relation("CommentReplies", fields: [parentId], references: [id])
+  replies          Comment[]      @relation("CommentReplies")
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+
+  @@index([postId, deletedAt])
+  @@index([parentId])
+  @@map("comments")
+}
+
+model Like {
+  postId           String
+  userId           String
+  createdAt        DateTime       @default(now())
+
+  post             Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("likes")
+}
+
+model Tag {
+  id               String         @id @default(cuid())
+  name             String         @unique @db.VarChar(100)
+  slug             String         @unique @db.VarChar(100)
+  
+  posts            Post[]         @relation("PostTags")
+
+  @@map("tags")
+}
