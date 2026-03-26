@@ -7,9 +7,9 @@ CREATE TABLE "users" (
     "email" VARCHAR(255) NOT NULL,
     "passwordHash" VARCHAR(255) NOT NULL,
     "name" VARCHAR(255) NOT NULL,
-    "role" "UserRole" NOT NULL DEFAULT 'USER',
     "bio" TEXT,
     "avatarUrl" VARCHAR(500),
+    "role" "UserRole" NOT NULL DEFAULT 'USER',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "isVerified" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -24,6 +24,3 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE INDEX "users_deletedAt_idx" ON "users"("deletedAt");
-
--- CreateIndex
-CREATE INDEX "users_email_idx" ON "users"("email");

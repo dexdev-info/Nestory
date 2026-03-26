@@ -32,9 +32,10 @@ model User {
   passwordHash     String    @db.VarChar(255)
 
   name             String    @db.VarChar(255)
-  role             UserRole  @default(USER)
   bio              String?   @db.Text
   avatarUrl        String?   @db.VarChar(500)
+
+  role             UserRole  @default(USER)
   isActive         Boolean   @default(true)
   isVerified       Boolean   @default(false)
 
@@ -46,7 +47,6 @@ model User {
   // refreshTokens    RefreshToken[]
 
   @@index([deletedAt])
-  @@index([email])
 
   @@map("users")
 }
