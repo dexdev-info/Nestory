@@ -40,10 +40,11 @@ CREATE TABLE "refresh_tokens" (
 -- CreateTable
 CREATE TABLE "posts" (
     "id" TEXT NOT NULL,
-    "slug" VARCHAR(255) NOT NULL,
     "coverImage" VARCHAR(500),
     "status" "PostStatus" NOT NULL DEFAULT 'DRAFT',
     "viewCount" INTEGER NOT NULL DEFAULT 0,
+    "clapCount" INTEGER NOT NULL DEFAULT 0,
+    "commentCount" INTEGER NOT NULL DEFAULT 0,
     "publishedAt" TIMESTAMP(3),
     "authorId" TEXT NOT NULL,
     "categoryId" TEXT,
@@ -58,10 +59,13 @@ CREATE TABLE "posts" (
 CREATE TABLE "post_translations" (
     "id" TEXT NOT NULL,
     "language" VARCHAR(10) NOT NULL,
+    "slug" VARCHAR(255) NOT NULL,
     "title" VARCHAR(255) NOT NULL,
     "excerpt" TEXT,
     "content" TEXT NOT NULL,
+    "readingTime" INTEGER NOT NULL DEFAULT 0,
     "postId" TEXT NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "post_translations_pkey" PRIMARY KEY ("id")
 );
@@ -91,6 +95,8 @@ CREATE TABLE "category_translations" (
 CREATE TABLE "comments" (
     "id" TEXT NOT NULL,
     "content" TEXT NOT NULL,
+    "replyCount" INTEGER NOT NULL DEFAULT 0,
+    "clapCount" INTEGER NOT NULL DEFAULT 0,
     "postId" TEXT NOT NULL,
     "authorId" TEXT NOT NULL,
     "parentId" TEXT,
@@ -102,12 +108,14 @@ CREATE TABLE "comments" (
 );
 
 -- CreateTable
-CREATE TABLE "likes" (
+CREATE TABLE "claps" (
     "postId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
+    "count" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "likes_pkey" PRIMARY KEY ("postId","userId")
+    CONSTRAINT "claps_pkey" PRIMARY KEY ("postId","userId")
 );
 
 -- CreateTable
@@ -115,6 +123,7 @@ CREATE TABLE "tags" (
     "id" TEXT NOT NULL,
     "name" VARCHAR(100) NOT NULL,
     "slug" VARCHAR(100) NOT NULL,
+    "postCount" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "tags_pkey" PRIMARY KEY ("id")
 );
@@ -128,34 +137,13 @@ CREATE TABLE "_PostTags" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
-
--- CreateIndex
-CREATE UNIQUE INDEX "users_username_key" ON "users"("username");
-
--- CreateIndex
 CREATE UNIQUE INDEX "refresh_tokens_tokenHash_key" ON "refresh_tokens"("tokenHash");
 
 -- CreateIndex
-CREATE INDEX "refresh_tokens_userId_isRevoked_idx" ON "refresh_tokens"("userId", "isRevoked");
+CREATE INDEX "posts_authorId_status_idx" ON "posts"("authorId", "status");
 
 -- CreateIndex
-CREATE INDEX "refresh_tokens_expiresAt_idx" ON "refresh_tokens"("expiresAt");
-
--- CreateIndex
-CREATE UNIQUE INDEX "posts_slug_key" ON "posts"("slug");
-
--- CreateIndex
-CREATE INDEX "posts_status_createdAt_idx" ON "posts"("status", "createdAt" DESC);
-
--- CreateIndex
-CREATE INDEX "posts_authorId_idx" ON "posts"("authorId");
-
--- CreateIndex
-CREATE INDEX "posts_categoryId_idx" ON "posts"("categoryId");
-
--- CreateIndex
-CREATE INDEX "post_translations_language_idx" ON "post_translations"("language");
+CREATE INDEX "posts_categoryId_status_idx" ON "posts"("categoryId", "status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "post_translations_postId_language_key" ON "post_translations"("postId", "language");
@@ -164,19 +152,22 @@ CREATE UNIQUE INDEX "post_translations_postId_language_key" ON "post_translation
 CREATE UNIQUE INDEX "categories_slug_key" ON "categories"("slug");
 
 -- CreateIndex
+CREATE INDEX "categories_parentId_idx" ON "categories"("parentId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "category_translations_categoryId_language_key" ON "category_translations"("categoryId", "language");
 
 -- CreateIndex
-CREATE INDEX "comments_postId_deletedAt_idx" ON "comments"("postId", "deletedAt");
-
--- CreateIndex
-CREATE INDEX "comments_parentId_idx" ON "comments"("parentId");
+CREATE INDEX "comments_authorId_idx" ON "comments"("authorId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "tags_name_key" ON "tags"("name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "tags_slug_key" ON "tags"("slug");
+
+-- CreateIndex
+CREATE INDEX "tags_postCount_idx" ON "tags"("postCount" DESC);
 
 -- CreateIndex
 CREATE INDEX "_PostTags_B_index" ON "_PostTags"("B");
@@ -209,10 +200,10 @@ ALTER TABLE "comments" ADD CONSTRAINT "comments_authorId_fkey" FOREIGN KEY ("aut
 ALTER TABLE "comments" ADD CONSTRAINT "comments_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "comments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "likes" ADD CONSTRAINT "likes_postId_fkey" FOREIGN KEY ("postId") REFERENCES "posts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "claps" ADD CONSTRAINT "claps_postId_fkey" FOREIGN KEY ("postId") REFERENCES "posts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "likes" ADD CONSTRAINT "likes_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "claps" ADD CONSTRAINT "claps_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_PostTags" ADD CONSTRAINT "_PostTags_A_fkey" FOREIGN KEY ("A") REFERENCES "posts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -220,29 +211,95 @@ ALTER TABLE "_PostTags" ADD CONSTRAINT "_PostTags_A_fkey" FOREIGN KEY ("A") REFE
 -- AddForeignKey
 ALTER TABLE "_PostTags" ADD CONSTRAINT "_PostTags_B_fkey" FOREIGN KEY ("B") REFERENCES "tags"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- ==========================================
--- 1. USERS
--- Chỉ index các user chưa bị soft delete
--- ==========================================
-CREATE INDEX "idx_users_active" ON "users" ("id") WHERE "deletedAt" IS NULL;
+-- ============================================
+-- PARTIAL INDEXES
+-- ============================================
 
--- ==========================================
--- 2. REFRESH TOKENS
--- Chỉ index các token còn hiệu lực (chưa revoke + chưa hết hạn)
--- ==========================================
-CREATE INDEX "idx_refresh_tokens_active" ON "refresh_tokens" ("userId", "expiresAt") 
-WHERE "isRevoked" = false;
+-- User: chỉ index user chưa bị soft delete
+-- dùng Unique Index ở đây để cho phép đăng ký lại email/username đã bị soft delete
+CREATE UNIQUE INDEX "idx_users_email_unique_active"
+    ON "users" ("email")
+    WHERE "deletedAt" IS NULL;
 
--- ==========================================
--- 3. POSTS
--- Lọc bài viết theo trạng thái và thời gian tạo, bỏ qua bài đã xoá
--- ==========================================
-CREATE INDEX "idx_posts_active" ON "posts" ("status", "createdAt" DESC) 
-WHERE "deletedAt" IS NULL;
+CREATE UNIQUE INDEX "idx_users_username_unique_active"
+    ON "users" ("username")
+    WHERE "deletedAt" IS NULL;
 
--- ==========================================
--- 4. COMMENTS
--- Lấy danh sách comment của một bài viết cụ thể, bỏ qua comment đã xoá
--- ==========================================
-CREATE INDEX "idx_comments_active" ON "comments" ("postId", "createdAt" DESC) 
-WHERE "deletedAt" IS NULL;
+-- RefreshToken: chỉ index các token còn hiệu lực (chưa revoke)
+CREATE INDEX "idx_refresh_tokens_active"
+    ON "refresh_tokens" ("userId")
+    WHERE "isRevoked" = false;
+
+-- RefreshToken: cron delete
+CREATE INDEX "idx_refresh_tokens_expiry_gc"
+    ON "refresh_tokens" ("expiresAt")
+    WHERE "isRevoked" = true;
+
+-- Post: chỉ index bài đã published và chưa bị xóa và covering index (Post feed)
+CREATE INDEX "idx_posts_feed_covering"
+    ON "posts" ("publishedAt" DESC)
+    INCLUDE ("id", "coverImage")
+    WHERE "status" = 'PUBLISHED' AND "deletedAt" IS NULL;
+
+-- Post: index theo Author Feed
+CREATE INDEX "idx_posts_author_feed"
+    ON "posts" ("authorId", "publishedAt" DESC)
+    WHERE "status" = 'PUBLISHED' AND "deletedAt" IS NULL;
+
+-- Post: index theo Category Feed
+CREATE INDEX "idx_posts_category_feed"
+    ON "posts" ("categoryId", "publishedAt" DESC)
+    WHERE "status" = 'PUBLISHED' AND "deletedAt" IS NULL;
+
+-- PostTranslation: Slug không trùng trong cùng 1 ngôn ngữ và reuseble slug
+CREATE UNIQUE INDEX "idx_slug_active"
+    ON "post_translations" ("language", "slug")
+    WHERE "deletedAt" IS NULL;
+
+-- PostTranslation: Search index theo ngôn ngữ
+CREATE INDEX "idx_post_translations_search_lang"
+    ON "post_translations" ("language")
+    WHERE "deletedAt" IS NULL;
+
+-- Comment: chỉ index comment chưa bị xóa và sắp theo thời gian (All / Newest)
+CREATE INDEX "idx_comments_active"
+    ON "comments" ("postId", "createdAt" DESC)
+    WHERE "deletedAt" IS NULL;
+
+-- Comment: chỉ index comment chưa bị xóa và sắp theo claps + replies
+CREATE INDEX "idx_comments_relevant"
+    ON "comments" ("postId", "clapCount" DESC, "replyCount" DESC)
+    WHERE "deletedAt" IS NULL;
+
+-- Comment: lấy replies của 1 comment
+CREATE INDEX "idx_comments_replies_active"
+    ON "comments" ("parentId", "createdAt" ASC)
+    WHERE "deletedAt" IS NULL;
+
+-- ============================================
+-- CONSTRAINTS
+-- ============================================
+
+ALTER TABLE "claps"
+    ADD CONSTRAINT "claps_count_check"
+    CHECK ("count" BETWEEN 1 AND 50);
+
+-- ============================================
+-- FULL-TEXT SEARCH (tsvector)
+-- ============================================
+
+-- Thêm cột tsv tự động tính từ title + excerpt + content
+-- Dùng 'simple' để support cả tiếng Việt (không dùng stemming tiếng Anh)
+ALTER TABLE "post_translations"
+    ADD COLUMN "tsv" tsvector
+    GENERATED ALWAYS AS (
+        setweight(to_tsvector('simple', lower(coalesce("title", ''))), 'A') ||
+        setweight(to_tsvector('simple', lower(coalesce("excerpt", ''))), 'B') ||
+        setweight(to_tsvector('simple', lower(coalesce("content", ''))), 'C')
+    ) STORED;
+
+-- GIN index cho full-text search
+CREATE INDEX "idx_post_translations_tsv"
+    ON "post_translations"
+    USING GIN ("tsv")
+    WHERE "deletedAt" IS NULL;
