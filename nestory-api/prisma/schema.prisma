@@ -1,172 +1,21 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
 generator client {
-  provider        = "prisma-client"
-  output          = "../src/generated/prisma"
-  previewFeatures = ["partialIndexes"]
-  compilerBuild   = "fast"
+  provider      = "prisma-client"
+  output        = "../src/generated/prisma"
+  compilerBuild = "fast"  // "fast" (default) | "small" — v7.3.0+
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id            String         @id @default(cuid())
-  email         String         @unique(map: "idx_users_email_unique_active", where: raw("(\"deletedAt\" IS NULL)")) @db.VarChar(255)
-  username      String         @unique(map: "idx_users_username_unique_active", where: raw("(\"deletedAt\" IS NULL)")) @db.VarChar(50)
-  passwordHash  String         @db.VarChar(255)
-  name          String         @db.VarChar(255)
-  bio           String?
-  avatarUrl     String?        @db.VarChar(500)
-  role          UserRole       @default(USER)
-  isActive      Boolean        @default(true)
-  isVerified    Boolean        @default(false)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  deletedAt     DateTime?
-  claps         Clap[]
-  comments      Comment[]
-  posts         Post[]
-  refreshTokens RefreshToken[]
-
-  @@map("users")
-}
-
-model RefreshToken {
-  id        String   @id @default(cuid())
-  tokenHash String   @unique @db.VarChar(255)
-  userId    String
-  userAgent String?
-  ipAddress String?  @db.VarChar(45)
-  isRevoked Boolean  @default(false)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId], map: "idx_refresh_tokens_active", where: raw("(\"isRevoked\" = false)"))
-  @@index([expiresAt], map: "idx_refresh_tokens_expiry_gc", where: raw("(\"isRevoked\" = true)"))
-  @@map("refresh_tokens")
-}
-
-model Post {
-  id           String            @id @default(cuid())
-  coverImage   String?           @db.VarChar(500)
-  status       PostStatus        @default(DRAFT)
-  viewCount    Int               @default(0)
-  clapCount    Int               @default(0)
-  commentCount Int               @default(0)
-  publishedAt  DateTime?
-  authorId     String
-  categoryId   String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  deletedAt    DateTime?
-  claps        Clap[]
-  comments     Comment[]
-  translations PostTranslation[]
-  author       User              @relation(fields: [authorId], references: [id])
-  category     Category?         @relation(fields: [categoryId], references: [id])
-  tags         Tag[]             @relation("PostTags")
-
-  @@index([authorId, status])
-  @@index([categoryId, status])
-  @@index([authorId, publishedAt(sort: Desc)], map: "idx_posts_author_feed", where: raw("((status = 'PUBLISHED'::\"PostStatus\") AND (\"deletedAt\" IS NULL))"))
-  @@index([categoryId, publishedAt(sort: Desc)], map: "idx_posts_category_feed", where: raw("((status = 'PUBLISHED'::\"PostStatus\") AND (\"deletedAt\" IS NULL))"))
-  @@index([publishedAt(sort: Desc), id, coverImage], map: "idx_posts_feed_covering", where: raw("((status = 'PUBLISHED'::\"PostStatus\") AND (\"deletedAt\" IS NULL))"))
-  @@map("posts")
-}
-
-model PostTranslation {
-  id          String                   @id @default(cuid())
-  language    String                   @db.VarChar(10)
-  slug        String                   @db.VarChar(255)
-  title       String                   @db.VarChar(255)
-  excerpt     String?
-  content     String
-  readingTime Int                      @default(0)
-  postId      String
-  deletedAt   DateTime?
-  tsv         Unsupported("tsvector")? @default(dbgenerated("((setweight(to_tsvector('simple'::regconfig, lower((COALESCE(title, ''::character varying))::text)), 'A'::\"char\") || setweight(to_tsvector('simple'::regconfig, lower(COALESCE(excerpt, ''::text))), 'B'::\"char\")) || setweight(to_tsvector('simple'::regconfig, lower(COALESCE(content, ''::text))), 'C'::\"char\"))"))
-  post        Post                     @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, language])
-  @@unique([language, slug], map: "idx_slug_active", where: raw("(\"deletedAt\" IS NULL)"))
-  @@index([language], map: "idx_post_translations_search_lang", where: raw("(\"deletedAt\" IS NULL)"))
-  @@index([tsv], map: "idx_post_translations_tsv", type: Gin, where: raw("(\"deletedAt\" IS NULL)"))
-  @@map("post_translations")
-}
-
-model Category {
-  id           String                @id @default(cuid())
-  slug         String                @unique @db.VarChar(255)
-  parentId     String?
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  parent       Category?             @relation("CategoryTree", fields: [parentId], references: [id])
-  children     Category[]            @relation("CategoryTree")
-  translations CategoryTranslation[]
-  posts        Post[]
-
-  @@index([parentId])
-  @@map("categories")
-}
-
-model CategoryTranslation {
-  id         String   @id @default(cuid())
-  language   String   @db.VarChar(10)
-  name       String   @db.VarChar(255)
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  @@unique([categoryId, language])
-  @@map("category_translations")
-}
-
-model Comment {
-  id         String    @id @default(cuid())
-  content    String
-  replyCount Int       @default(0)
-  clapCount  Int       @default(0)
-  postId     String
-  authorId   String
-  parentId   String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?
-  author     User      @relation(fields: [authorId], references: [id])
-  parent     Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies    Comment[] @relation("CommentReplies")
-  post       Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@index([authorId])
-  @@index([postId, createdAt(sort: Desc)], map: "idx_comments_active", where: raw("(\"deletedAt\" IS NULL)"))
-  @@index([postId, clapCount(sort: Desc), replyCount(sort: Desc)], map: "idx_comments_relevant", where: raw("(\"deletedAt\" IS NULL)"))
-  @@index([parentId, createdAt], map: "idx_comments_replies_active", where: raw("(\"deletedAt\" IS NULL)"))
-  @@map("comments")
-}
-
-model Clap {
-  postId    String
-  userId    String
-  count     Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([postId, userId])
-  @@map("claps")
-}
-
-model Tag {
-  id        String @id @default(cuid())
-  name      String @unique @db.VarChar(100)
-  slug      String @unique @db.VarChar(100)
-  postCount Int    @default(0)
-  posts     Post[] @relation("PostTags")
-
-  @@index([postCount(sort: Desc)])
-  @@map("tags")
-}
+// ============================================
+// ENUMS
+// ============================================
 
 enum UserRole {
   USER
@@ -177,4 +26,199 @@ enum PostStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model User {
+  id               String         @id @default(cuid())
+  // email và user name không đặt unique ở đây -> unique + partial index trong migration
+  email            String         @db.VarChar(255)
+  username         String         @db.VarChar(50)
+  passwordHash     String         @db.VarChar(255)
+
+  name             String         @db.VarChar(255)
+  bio              String?        @db.Text
+  avatarUrl        String?        @db.VarChar(500)
+
+  role             UserRole       @default(USER)
+  isActive         Boolean        @default(true)
+  isVerified       Boolean        @default(false)
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+
+  refreshTokens    RefreshToken[]
+  posts            Post[]
+  claps            Clap[]
+  comments         Comment[]
+
+  // partial index -> WHERE deletedAt IS NULL
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id               String         @id @default(cuid())
+  tokenHash        String         @unique @db.VarChar(255)
+  
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  userAgent        String?        @db.Text
+  ipAddress        String?        @db.VarChar(45)
+  
+  isRevoked        Boolean        @default(false)
+  expiresAt        DateTime
+  createdAt        DateTime       @default(now())
+
+  // partial index -> WHERE "isRevoked" = false;
+
+  @@map("refresh_tokens")
+}
+
+model Post {
+  id               String         @id @default(cuid())
+  coverImage       String?        @db.VarChar(500)
+  status           PostStatus     @default(DRAFT)
+  viewCount        Int            @default(0)
+  clapCount        Int            @default(0)
+  commentCount     Int            @default(0)
+  publishedAt      DateTime?
+
+  authorId         String
+  author           User           @relation(fields: [authorId], references: [id])
+  categoryId       String?
+  category         Category?      @relation(fields: [categoryId], references: [id])
+
+  translations     PostTranslation[]
+  tags             Tag[]          @relation("PostTags")
+  comments         Comment[]
+  claps            Clap[]
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+
+  // partial index -> Query bài viết published, sort theo mới nhất
+  // Query bài viết theo tác giả (profile page, dashboard)
+  @@index([authorId, status])
+  // Query bài viết theo category
+  @@index([categoryId, status])
+  // partial index -> WHERE deletedAt IS NULL
+
+  @@map("posts")
+}
+
+model PostTranslation {
+  id               String         @id @default(cuid())
+  language         String         @db.VarChar(10)
+  slug             String         @db.VarChar(255)
+  title            String         @db.VarChar(255)
+  excerpt          String?        @db.Text
+  content          String         @db.Text
+  readingTime      Int            @default(0)
+
+  // tsv tsvector for search -> Thêm thủ công trong migration SQL
+
+  postId           String
+  post             Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  deletedAt        DateTime?
+
+// Mỗi post chỉ có 1 bản dịch cho 1 ngôn ngữ
+  @@unique([postId, language])
+  // partial index -> Slug không trùng trong cùng 1 ngôn ngữ và reuseble slug
+
+  @@map("post_translations")
+}
+
+model Category {
+  id               String         @id @default(cuid())
+  slug             String         @unique @db.VarChar(255)
+
+  parentId         String?
+  parent           Category?      @relation("CategoryTree", fields: [parentId], references: [id])
+  children         Category[]     @relation("CategoryTree")
+
+  posts            Post[]
+  translations     CategoryTranslation[]
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([parentId])
+
+  @@map("categories")
+}
+
+model CategoryTranslation {
+  id               String         @id @default(cuid())
+  language         String         @db.VarChar(10)
+  name             String         @db.VarChar(255)
+
+  categoryId       String
+  category         Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, language])
+  @@map("category_translations")
+}
+
+model Comment {
+  id               String         @id @default(cuid())
+  content          String         @db.Text
+  replyCount       Int            @default(0)
+  clapCount        Int            @default(0)
+
+  postId           String
+  post             Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId         String
+  author           User           @relation(fields: [authorId], references: [id])
+  parentId         String?
+  parent           Comment?       @relation("CommentReplies", fields: [parentId], references: [id])
+  replies          Comment[]      @relation("CommentReplies")
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+
+  // partial index -> sort theo all | newest | relevant
+  // partial index -> Query replies của 1 comment
+  // Query tất cả comments của 1 user (profile/moderation)
+  @@index([authorId])
+
+  @@map("comments")
+}
+
+model Clap {
+  postId           String
+  userId           String
+  // Tối đa 50 lần clap, validate ở application layer
+  count            Int            @default(1)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  post             Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+
+  @@map("claps")
+}
+
+model Tag {
+  id               String         @id @default(cuid())
+  name             String         @unique @db.VarChar(100)
+  slug             String         @unique @db.VarChar(100)
+  postCount        Int            @default(0)
+
+  posts            Post[]         @relation("PostTags")
+
+  // Sort tags theo popularity
+  @@index([postCount(sort: Desc)]) 
+
+  @@map("tags")
 }
