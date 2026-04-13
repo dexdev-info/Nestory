@@ -1,4 +1,10 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+  SetMetadata,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -7,9 +13,6 @@ import { ApiResponse } from '../interfaces/api-response.interface';
 
 // Decorator để override message mặc định per-route
 export const ResponseMessage = (message: string) => SetMetadata('response_message', message);
-
-// Import SetMetadata
-import { SetMetadata } from '@nestjs/common';
 
 @Injectable()
 export class TransformInterceptor<T> implements NestInterceptor<T, ApiResponse<T>> {
@@ -41,12 +44,12 @@ export class TransformInterceptor<T> implements NestInterceptor<T, ApiResponse<T
 
   private getDefaultMessage(method: string): string {
     const messages: Record<string, string> = {
-      GET: 'Lấy dữ liệu thành công',
-      POST: 'Tạo mới thành công',
-      PATCH: 'Cập nhật thành công',
-      PUT: 'Cập nhật thành công',
-      DELETE: 'Xóa thành công',
+      GET: 'Get data successfully',
+      POST: 'Create new item successfully',
+      PATCH: 'Update item successfully',
+      PUT: 'Update item successfully',
+      DELETE: 'Delete item successfully',
     };
-    return messages[method] ?? 'Thành công';
+    return messages[method] ?? 'Success';
   }
 }

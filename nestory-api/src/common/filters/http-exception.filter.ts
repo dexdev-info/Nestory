@@ -9,7 +9,6 @@ import {
 import { Request, Response } from 'express';
 
 // Cùng shape với ApiResponse nhưng success: false
-// Đảm bảo cả success và error response có format nhất quán
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
