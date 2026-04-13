@@ -1,4 +1,4 @@
-// Shape chuẩn cho tất cả response trong hệ thống
+// Shape for standard API response
 export interface ApiResponse<T> {
   success: boolean;
   statusCode: number;
@@ -8,7 +8,7 @@ export interface ApiResponse<T> {
   path: string;
 }
 
-// Shape cho paginated response
+// Shape for paginated response
 export interface PaginatedData<T> {
   items: T[];
   total: number;
