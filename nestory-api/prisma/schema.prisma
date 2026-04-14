@@ -9,6 +9,11 @@ generator client {
   compilerBuild = "fast"  // "fast" (default) | "small" — v7.3.0+
 }
 
+generator nestjsDto {
+  provider      = "prisma-generator-nestjs-dto"
+  output        = "../src/generated/nestjs-dto"
+}
+
 datasource db {
   provider = "postgresql"
 }
