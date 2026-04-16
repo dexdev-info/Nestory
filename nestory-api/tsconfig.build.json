@@ -1,15 +1,4 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"],
-  "compilerOptions": {
-    "baseUrl": "./",
-    "paths": {
-      "@/*": ["src/*"],
-      "@prisma/*": ["src/prisma/*"],
-      "@modules/*": ["src/modules/*"],
-      "@common/*": ["src/common/*"],
-      "@config/*": ["src/config/*"],
-      "@generated/*": ["src/generated/*"]
-    }
-  }
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
 }

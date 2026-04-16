@@ -7,11 +7,7 @@ generator client {
   provider      = "prisma-client"
   output        = "../src/generated/prisma"
   compilerBuild = "fast"  // "fast" (default) | "small" — v7.3.0+
-}
-
-generator nestjsDto {
-  provider      = "prisma-generator-nestjs-dto"
-  output        = "../src/generated/nestjs-dto"
+  moduleFormat = "cjs"
 }
 
 datasource db {
