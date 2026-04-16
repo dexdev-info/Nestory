@@ -6,14 +6,11 @@ import {
   Matches,
   IsOptional,
   IsUrl,
-  IsEnum,
-  IsBoolean,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { UserRole } from '@generated/prisma/enums';
 
-// Admin update user - can change all fields
-export class UpdateUserDto {
+// User update profile - cannot change role/status
+export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MinLength(2)
@@ -51,16 +48,4 @@ export class UpdateUserDto {
     typeof value === 'string' ? value.toLowerCase().trim() : value,
   )
   email?: string;
-
-  @IsOptional()
-  @IsEnum(UserRole)
-  role?: UserRole;
-
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  isVerified?: boolean;
 }
