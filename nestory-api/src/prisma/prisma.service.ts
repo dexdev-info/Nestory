@@ -1,7 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -14,13 +13,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       throw new Error('DATABASE_URL environment variable is not defined');
     }
 
-    // 1 Init Connection Pool from pg
-    const pool = new Pool({ connectionString });
+    const adapter = new PrismaPg({ connectionString });
 
-    // 2. Pass the newly created instance pool to the PrismaPg adapter
-    const adapter = new PrismaPg(pool);
-
-    // 3. Pass the adapter to the PrismaClient constructor
     super({ adapter });
   }
 
