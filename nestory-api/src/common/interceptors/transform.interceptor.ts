@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { ApiResponse } from '../interfaces/api-response.interface';
 
 // Decorator để override message mặc định per-route
@@ -21,7 +21,7 @@ export class TransformInterceptor<T> implements NestInterceptor<T, ApiResponse<T
   intercept(context: ExecutionContext, next: CallHandler): Observable<ApiResponse<T>> {
     const ctx = context.switchToHttp();
     const request = ctx.getRequest<Request>();
-    const response = ctx.getResponse();
+    const response = ctx.getResponse<Response>();
 
     // Lấy message từ decorator @ResponseMessage() nếu có,
     // fallback về message mặc định theo HTTP method

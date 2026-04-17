@@ -41,6 +41,7 @@ export class UpdateProfileDto {
   )
   username?: string;
 
+  // TODO: add email verification flow
   @IsOptional()
   @IsEmail({}, { message: 'Invalid email format' })
   @MaxLength(255)

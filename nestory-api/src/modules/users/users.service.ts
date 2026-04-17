@@ -37,13 +37,17 @@ export class UsersService {
   }
 
   //* Handle error from Prisma (especially unique constraint)
-  private handlePrismaError(e: any, action: string): never {
+  private handlePrismaError(e: unknown, action: string): never {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-      const field = Array.isArray(e.meta?.target) ? e.meta.target.join(', ') : 'Field data';
+      const field = Array.isArray(e.meta?.target)
+        ? (e.meta.target as string[]).join(', ')
+        : 'Field data';
       throw new ConflictException(`${field} has been used`);
     }
 
-    this.logger.error(`Error when ${action}: ${e.message}`, e.stack);
+    const message = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack : undefined;
+    this.logger.error(`Error when ${action}: ${message}`, stack);
     throw new InternalServerErrorException(`Error when ${action}`);
   }
 
@@ -63,7 +67,7 @@ export class UsersService {
 
       return this.toResponse(user);
     } catch (e) {
-      this.handlePrismaError(e, 'create user');
+      return this.handlePrismaError(e, 'create user');
     }
   }
 
@@ -126,7 +130,7 @@ export class UsersService {
       });
       return this.toResponse(user);
     } catch (e) {
-      this.handlePrismaError(e, 'update user');
+      return this.handlePrismaError(e, 'update user');
     }
   }
 
@@ -136,7 +140,7 @@ export class UsersService {
     // Soft delete: set deletedAt, revoke all refresh tokens
     await this.prisma.$transaction([
       this.prisma.user.update({
-        where: { id },
+        where: { id, deletedAt: null },
         data: { deletedAt: new Date(), isActive: false },
       }),
       this.prisma.refreshToken.updateMany({
@@ -162,7 +166,7 @@ export class UsersService {
       });
       return this.toResponse(user);
     } catch (e) {
-      this.handlePrismaError(e, 'update profile');
+      return this.handlePrismaError(e, 'update profile');
     }
   }
 

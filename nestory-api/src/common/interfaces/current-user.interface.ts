@@ -1,3 +1,5 @@
+import { UserRole } from '@generated/prisma/enums';
+
 export interface ICurrentUser {
   id: string;
   email: string;
@@ -5,7 +7,7 @@ export interface ICurrentUser {
   name: string;
   bio?: string;
   avatarUrl?: string;
-  role: string;
+  role: UserRole;
   isActive?: boolean;
   isVerified?: boolean;
   createdAt?: Date;
