@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  ConflictException,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { hash } from '@node-rs/argon2';
 import { PrismaService } from '@prisma/prisma.service';
 import { CreateUserDto } from '@modules/users/dto/create-user.dto';
@@ -13,6 +7,7 @@ import { UpdateProfileDto } from '@modules/users/dto/update-profile.dto';
 import { QueryUserDto } from '@modules/users/dto/query-user.dto';
 import { UserResponseDto } from '@modules/users/dto/user-response.dto';
 import { PaginatedData } from '@/common/interfaces/api-response.interface';
+import { handlePrismaError } from '@/common/utils/prisma-error.util';
 import { Prisma } from '@generated/prisma/client';
 import { User } from '@generated/prisma/client';
 
@@ -36,21 +31,6 @@ export class UsersService {
     return user;
   }
 
-  //* Handle error from Prisma (especially unique constraint)
-  private handlePrismaError(e: unknown, action: string): never {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-      const field = Array.isArray(e.meta?.target)
-        ? (e.meta.target as string[]).join(', ')
-        : 'Field data';
-      throw new ConflictException(`${field} has been used`);
-    }
-
-    const message = e instanceof Error ? e.message : String(e);
-    const stack = e instanceof Error ? e.stack : undefined;
-    this.logger.error(`Error when ${action}: ${message}`, stack);
-    throw new InternalServerErrorException(`Error when ${action}`);
-  }
-
   //*--- Admin: CRUD ---
 
   async create(dto: CreateUserDto): Promise<UserResponseDto> {
@@ -67,7 +47,7 @@ export class UsersService {
 
       return this.toResponse(user);
     } catch (e) {
-      return this.handlePrismaError(e, 'create user');
+      return handlePrismaError(e, 'create user', this.logger);
     }
   }
 
@@ -130,7 +110,7 @@ export class UsersService {
       });
       return this.toResponse(user);
     } catch (e) {
-      return this.handlePrismaError(e, 'update user');
+      return handlePrismaError(e, 'update user', this.logger);
     }
   }
 
@@ -166,7 +146,7 @@ export class UsersService {
       });
       return this.toResponse(user);
     } catch (e) {
-      return this.handlePrismaError(e, 'update profile');
+      return handlePrismaError(e, 'update user', this.logger);
     }
   }
 
