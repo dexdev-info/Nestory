@@ -9,6 +9,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { UsersService } from '@modules/users/users.service';
 import { CreateUserDto } from '@modules/users/dto/create-user.dto';
@@ -20,11 +21,12 @@ import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { ResponseMessage } from '@common/interceptors/transform.interceptor';
 import { UserResponseDto } from '@modules/users/dto/user-response.dto';
 import { PaginatedData } from '@common/interfaces/api-response.interface';
+import { RolesGuard } from '@modules/auth/guards/roles.guard';
+import { Roles } from '@common/decorators/roles.decorator';
+import { UserRole } from '@generated/prisma/enums';
 
 // Separate to avoid route conflict /me vs /:id
 // --- Profile Controller (User Facing) ---
-// TODO: @UseGuards(JwtAuthGuard)
-
 @Controller('profile')
 export class ProfileController {
   constructor(private readonly usersService: UsersService) {}
@@ -55,9 +57,9 @@ export class ProfileController {
 }
 
 // --- Users Controller (Admin Facing) ---
-// TODO: @UseGuards(JwtAuthGuard, RolesGuard) @Roles(UserRole.ADMIN)
-
 @Controller({ path: 'users' })
+@UseGuards(RolesGuard)
+@Roles(UserRole.ADMIN)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

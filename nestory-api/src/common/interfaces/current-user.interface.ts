@@ -5,8 +5,8 @@ export interface ICurrentUser {
   email: string;
   username: string;
   name: string;
-  bio?: string;
-  avatarUrl?: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
   role: UserRole;
   isActive?: boolean;
   isVerified?: boolean;
